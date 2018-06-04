@@ -6,6 +6,8 @@ contract BaseContentManagement {
         string name;
         string author;
         string contentType;
+        string genre;
+        uint views;
     }
     
 }
