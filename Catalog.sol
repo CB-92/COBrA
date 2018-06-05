@@ -1,4 +1,5 @@
 pragma solidity ^0.4.23;
+import "./BaseContentManagement.sol";
 
 contract Catalog {
     address public creator;
@@ -9,21 +10,22 @@ contract Catalog {
     /* List of content identifiers */
     bytes32[] contentList;
 
+    struct ContentMetadata{
+        BaseContentManagement content;
+        bool isLinked;
+        uint views;
+    }
+
+    mapping(string => ContentMetadata) addedContents;
+
     constructor() public{
         creator = msg.sender;
         /* 1 month = (30 days * 24 h * 60 min * 60 sec) / 14 seconds per block = 185143 blocks */
         premiumTime = 185143;
     }
 
-
-    /* Refer users through an username is more user_friendly than refer them using an address!*/
-    mapping (string => address) nameToAddress;
-
     /* user address => block number of premium subscription*/
     mapping (address => uint) premiumUsers;
-
-    /* content => allowed users */
-    mapping (string => address[]) contentToAllowedUsers;
 
     /* modifier to restrict a functionality only to Premium users */
     modifier restrictToPremium{
@@ -42,17 +44,6 @@ contract Catalog {
         );
         _;
     }
-    
-    /*function stringToBytes32(string memory source) internal pure returns (bytes32 result) {
-        bytes memory tempEmptyStringTest = bytes(source);
-        if (tempEmptyStringTest.length == 0) {
-            return 0x0;
-        }
-
-        assembly {
-            result := mload(add(source, 32))
-        }
-    }*/
 
     /* Check account balance */
     modifier costs(uint _amount){
@@ -61,17 +52,6 @@ contract Catalog {
             "You didn't pay the correct amount of money!"
         );
         _;
-    }
-    
-
-    /*
-        pure -> non legge e non scrive storage
-        view -> non scrive storage
-        external -> può essere chiamata solo da fuori, consuma meno gas di public
-    */
-
-    function Register(string _username) external{
-        nameToAddress[_username] = msg.sender;
     }
 
     function GetStatistics() external view returns (bytes32[], uint[]){
@@ -88,6 +68,7 @@ contract Catalog {
         for (uint i = _x - 1; i>=0; i--){
             latests[i] = contentList[j];
             j--;
+            if(i==0) break;
         }
         return latests;
     }
@@ -104,30 +85,39 @@ contract Catalog {
 
     }
 
-    function IsPremium(string _user) external view returns (bool){
-        if(premiumUsers[nameToAddress[_user]] + premiumTime > block.number)
+    function GetMostPopularByAuthor(string _author) external view returns(string){
+
+    }
+
+    function IsPremium(address _user) external view returns (bool){
+        if(premiumUsers[_user] + premiumTime > block.number)
             return true;
         else return false;
     }
 
     function GetContent(string _content) external payable costs(contentPrice){
-        contentToAllowedUsers[_content].push(msg.sender);
+        addedContents[_content].content.grantAccess(msg.sender);
     }
 
     function GetContentPremium(string _content) external restrictToPremium{
-        /* TODO */
+        addedContents[_content].content.grantAccess(msg.sender);
     }
 
-    function GiftContent(string _content, string _user) external payable costs(contentPrice){
-        contentToAllowedUsers[_content].push(nameToAddress[_user]);
+    function GiftContent(string _content, address _user) external payable costs(contentPrice){
+        addedContents[_content].content.grantAccess(_user);
     }
 
-    function GiftPremium(string _user) external payable costs(premiumPrice){
-        premiumUsers[nameToAddress[_user]] = block.number;
+    function GiftPremium(address _user) external payable costs(premiumPrice){
+        premiumUsers[_user] = block.number;
     }
 
     function BuyPremium() external payable costs(premiumPrice){
         premiumUsers[msg.sender] = block.number;
+    }
+
+    function ConsumeContent(string _content) external{
+        addedContents[_content].content.consumeContent(msg.sender);
+        addedContents[_content].views++;
     }
 
     function CloseCatalog() external onlyCreator{
