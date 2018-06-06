@@ -2,15 +2,15 @@ pragma solidity 0.4.23;
 
 contract BaseContentManagement {
 
-    string title;
-    string author;
-    string genre;
-    uint views;
+    bytes32 public title;
+    bytes32 public author;
+    bytes32 public genre;
+    bytes32 private content;
 
     address catalogAddress;
     mapping (address => bool) allowedUsers;
 
-    constructor(string _title, string _author, string _genre) public{
+    constructor(bytes32 _title, bytes32 _author, bytes32 _genre) public{
         title = _title;
         author = _author;
         genre = _genre;
@@ -36,8 +36,9 @@ contract BaseContentManagement {
         allowedUsers[_user] = true;
     }
 
-    function consumeContent(address _user) external isCatalog onlyIfAllowed(_user){
+    function consumeContent(address _user) external isCatalog onlyIfAllowed(_user) returns(bytes32){
         allowedUsers[_user] = false;
+        return content;
     }
     
 }

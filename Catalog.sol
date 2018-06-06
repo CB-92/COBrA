@@ -1,27 +1,38 @@
 pragma solidity ^0.4.23;
+pragma experimental ABIEncoderV2;
 import "./BaseContentManagement.sol";
+import "./StringLib.sol";
 
 contract Catalog {
     address public creator;
+    StringLib sc;
     uint contentPrice;
     uint premiumTime;
-    uint lastElementsNumber;
     uint premiumPrice;
     /* List of content identifiers */
     bytes32[] contentList;
+    uint paymentDelay;
+    uint allTheViews;
 
     struct ContentMetadata{
         BaseContentManagement content;
+        address authorAddress;
         bool isLinked;
         uint views;
+        uint viewsSincePayed;
     }
 
-    mapping(string => ContentMetadata) addedContents;
+    mapping(bytes32 => ContentMetadata) addedContents;
 
     constructor() public{
         creator = msg.sender;
-        /* 1 month = (30 days * 24 h * 60 min * 60 sec) / 14 seconds per block = 185143 blocks */
-        premiumTime = 185143;
+        /* 1 day = (24 h * 60 min * 60 sec) / 14.93 seconds per block = 53788 blocks */
+        premiumTime = 53788;
+        contentPrice = 100;
+        premiumPrice = 500;
+        paymentDelay = 5;
+        allTheViews = 0;
+        sc = new StringLib();
     }
 
     /* user address => block number of premium subscription*/
@@ -32,6 +43,14 @@ contract Catalog {
         require(
             premiumUsers[msg.sender] + premiumTime > block.number,
             "Access restricted to Premium accounts!"
+        );
+        _;
+    }
+
+    modifier ifLinkedContent(bytes32 _content){
+        require(
+            addedContents[_content].isLinked == true,
+            "Content not linked to the catalog!"
         );
         _;
     }
@@ -54,6 +73,16 @@ contract Catalog {
         _;
     }
 
+    function LinkToTheCatalog(BaseContentManagement _bcm) external{
+        bytes32 _title = _bcm.title();
+        contentList.push(_title);
+        addedContents[_title].content = _bcm;
+        addedContents[_title].authorAddress = msg.sender;
+        addedContents[_title].views = 0;
+        addedContents[_title].viewsSincePayed = 0;
+        addedContents[_title].isLinked = true;
+    }
+
     function GetStatistics() external view returns (bytes32[], uint[]){
 
     }
@@ -73,20 +102,57 @@ contract Catalog {
         return latests;
     }
 
-    function GetLatestByGenre(string _genre) external view returns (string){
+    function GetLatestByGenre(bytes32 _genre) external view returns (string){
+        string memory tmp;
+        for (uint i = contentList.length - 1; i>=0; i--){
+            if (addedContents[contentList[i]].content.genre() == _genre){
+                tmp = sc.bytes32ToString(contentList[i]);
+                break;
+            }
+            if(i == 0)
+                break;
+        }
+        return tmp;
+    }
+
+    function GetMostPopularByGenre(bytes32 _genre) external view returns (string){
+        uint max = 0;
+        string memory tmp;
+        for(uint i = 0; i<contentList.length; i++){
+            if(addedContents[contentList[i]].content.genre() == _genre &&
+            addedContents[contentList[i]].views > max){
+                max = addedContents[contentList[i]].views;
+                tmp = sc.bytes32ToString(contentList[i]);
+            }
+        }
+        return tmp;
+    }
+
+    function GetLatestByAuthor(bytes32 _author) external view returns (string){
+        string memory tmp;
+        for (uint i = contentList.length - 1; i>=0; i--){
+            if (addedContents[contentList[i]].content.author() == _author){
+                tmp = sc.bytes32ToString(contentList[i]);
+                break;
+            }
+            if(i == 0)
+                break;
+        }
+        return tmp;
 
     }
 
-    function GetMostPopularByGenre(string _genre) external view returns (string){
-
-    }
-
-    function GetLatestByAuthor(string _autor) external view returns (string){
-
-    }
-
-    function GetMostPopularByAuthor(string _author) external view returns(string){
-
+    function GetMostPopularByAuthor(bytes32 _author) external view returns(string){
+        uint max = 0;
+        string memory tmp;
+        for(uint i = 0; i<contentList.length; i++){
+            if(addedContents[contentList[i]].content.author() == _author &&
+            addedContents[contentList[i]].views > max){
+                max = addedContents[contentList[i]].views;
+                tmp = sc.bytes32ToString(contentList[i]);
+            }
+        }
+        return tmp;
     }
 
     function IsPremium(address _user) external view returns (bool){
@@ -95,19 +161,29 @@ contract Catalog {
         else return false;
     }
 
-    function GetContent(string _content) external payable costs(contentPrice){
+    function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
         addedContents[_content].content.grantAccess(msg.sender);
+        addedContents[_content].views++;
+        addedContents[_content].viewsSincePayed++;
+
+        /* Pay authors every paymentDelay views */
+        if(addedContents[_content].viewsSincePayed == paymentDelay){
+            addedContents[_content].authorAddress.transfer(paymentDelay * contentPrice);
+            addedContents[_content].viewsSincePayed = 0;
+        }
+        return addedContents[_content].authorAddress;
     }
 
-    function GetContentPremium(string _content) external restrictToPremium{
+    function GetContentPremium(bytes32 _content) external restrictToPremium returns (address){
         addedContents[_content].content.grantAccess(msg.sender);
+        return addedContents[_content].authorAddress;
     }
 
-    function GiftContent(string _content, address _user) external payable costs(contentPrice){
-        addedContents[_content].content.grantAccess(_user);
+    function GiftContent(string _content, address _user) external payable costs(contentPrice) ifLinkedContent(sc.stringToBytes32(_content)){
+        addedContents[sc.stringToBytes32(_content)].content.grantAccess(_user);
     }
 
-    function GiftPremium(address _user) external payable costs(premiumPrice){
+    function GiftPremium(address _user) external payable costs(premiumPrice) {
         premiumUsers[_user] = block.number;
     }
 
@@ -115,13 +191,11 @@ contract Catalog {
         premiumUsers[msg.sender] = block.number;
     }
 
-    function ConsumeContent(string _content) external{
-        addedContents[_content].content.consumeContent(msg.sender);
-        addedContents[_content].views++;
-    }
-
     function CloseCatalog() external onlyCreator{
-        /* TODO: pagare autori in proporzione alle views */
+        for(uint i = 0; i<contentList.length; i++){
+            uint toTransfer = address(this).balance * addedContents[contentList[i]].views / allTheViews;
+            addedContents[contentList[i]].authorAddress.transfer(toTransfer);
+        }
         selfdestruct(creator);
     }
 
