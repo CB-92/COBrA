@@ -13,7 +13,6 @@ contract Catalog {
     uint allTheViews;
 
     struct ContentMetadata{
-        BaseContentManagement content;
         address authorAddress;
         bool isLinked;
         uint views;
@@ -49,6 +48,12 @@ contract Catalog {
         _;
     }
 
+    /* only for Standard users */
+    modifier restrictToStandard{
+        require(premiumUsers[msg.sender] == 0);
+        _;
+    }
+
     modifier ifLinkedContent(bytes32 _content){
         require(
             addedContents[_content].isLinked == true,
@@ -66,11 +71,20 @@ contract Catalog {
         _;
     }
 
-    /* Check account balance */
+    /* Check payment value */
     modifier costs(uint _amount){
         require(
             msg.value == _amount,
             "You didn't pay the correct amount of money!"
+        );
+        _;
+    }
+
+    /* Check if the content list is empty */
+    modifier ifNotEmpty{
+        require(
+            contentList.length != 0,
+            "Content list is empty!"
         );
         _;
     }
@@ -93,10 +107,9 @@ contract Catalog {
         return string(bytesStringTrimmed);
     }
 
-    function LinkToTheCatalog(BaseContentManagement _bcm) external{
-        bytes32 _title = _bcm.title();
+    function LinkToTheCatalog() external{
+        bytes32 _title = BaseContentManagement(msg.sender).title();
         contentList.push(_title);
-        addedContents[_title].content = _bcm;
         addedContents[_title].authorAddress = msg.sender;
         addedContents[_title].views = 0;
         addedContents[_title].viewsSincePayed = 0;
@@ -104,15 +117,15 @@ contract Catalog {
         emit NewLinkedContent(bytes32ToString(_title));
     }
 
-    function GetStatistics() external view returns (bytes32[], uint[]){
+    function GetStatistics() external view ifNotEmpty returns (bytes32[], uint[]) {
 
     }
 
-    function GetContentList() external view returns (bytes32[]) {
+    function GetContentList() external view ifNotEmpty returns (bytes32[]) {
         return contentList;
     }
 
-    function GetNewContentsList(uint _x) external view returns (bytes32[]){
+    function GetNewContentsList(uint _x) external view ifNotEmpty returns (bytes32[]){
         bytes32[] memory latests = new bytes32[](_x);
         uint j = contentList.length - 1;
         for (uint i = _x - 1; i>=0; i--){
@@ -123,10 +136,10 @@ contract Catalog {
         return latests;
     }
 
-    function GetLatestByGenre(bytes32 _genre) external view returns (string){
+    function GetLatestByGenre(bytes32 _genre) external view ifNotEmpty returns (string){
         string memory tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
-            if (addedContents[contentList[i]].content.genre() == _genre){
+            if (BaseContentManagement(addedContents[contentList[i]].authorAddress).genre() == _genre){
                 tmp = bytes32ToString(contentList[i]);
                 break;
             }
@@ -136,11 +149,11 @@ contract Catalog {
         return tmp;
     }
 
-    function GetMostPopularByGenre(bytes32 _genre) external view returns (string){
+    function GetMostPopularByGenre(bytes32 _genre) external view ifNotEmpty returns (string){
         uint max = 0;
         string memory tmp;
         for(uint i = 0; i<contentList.length; i++){
-            if(addedContents[contentList[i]].content.genre() == _genre &&
+            if(BaseContentManagement(addedContents[contentList[i]].authorAddress).genre() == _genre &&
             addedContents[contentList[i]].views > max){
                 max = addedContents[contentList[i]].views;
                 tmp = bytes32ToString(contentList[i]);
@@ -149,10 +162,10 @@ contract Catalog {
         return tmp;
     }
 
-    function GetLatestByAuthor(bytes32 _author) external view returns (string){
+    function GetLatestByAuthor(bytes32 _author) external view ifNotEmpty returns (string){
         string memory tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
-            if (addedContents[contentList[i]].content.author() == _author){
+            if (BaseContentManagement(addedContents[contentList[i]].authorAddress).author() == _author){
                 tmp = bytes32ToString(contentList[i]);
                 break;
             }
@@ -163,11 +176,11 @@ contract Catalog {
 
     }
 
-    function GetMostPopularByAuthor(bytes32 _author) external view returns(string){
+    function GetMostPopularByAuthor(bytes32 _author) external view ifNotEmpty returns(string){
         uint max = 0;
         string memory tmp;
         for(uint i = 0; i<contentList.length; i++){
-            if(addedContents[contentList[i]].content.author() == _author &&
+            if(BaseContentManagement(addedContents[contentList[i]].authorAddress).author() == _author &&
             addedContents[contentList[i]].views > max){
                 max = addedContents[contentList[i]].views;
                 tmp = bytes32ToString(contentList[i]);
@@ -182,28 +195,30 @@ contract Catalog {
         else return false;
     }
 
-    function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
-        addedContents[_content].content.grantAccess(msg.sender);
+    function AddViews(bytes32 _content) external restrictToStandard {
         addedContents[_content].views++;
         addedContents[_content].viewsSincePayed++;
-
         /* Pay authors every paymentDelay views */
         if(addedContents[_content].viewsSincePayed == paymentDelay){
             addedContents[_content].authorAddress.transfer(paymentDelay * contentPrice);
             addedContents[_content].viewsSincePayed = 0;
         }
+    }
+
+    function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
+        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(msg.sender);
         emit AccessGranted(bytes32ToString(_content), msg.sender);
         return addedContents[_content].authorAddress;
     }
 
-    function GetContentPremium(bytes32 _content) external restrictToPremium returns (address){
-        addedContents[_content].content.grantAccess(msg.sender);
+    function GetContentPremium(bytes32 _content) external restrictToPremium  ifLinkedContent(_content) returns (address){
+        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(msg.sender);
         emit AccessGranted(bytes32ToString(_content), msg.sender);
         return addedContents[_content].authorAddress;
     }
 
     function GiftContent(bytes32 _content, address _user) external payable costs(contentPrice) ifLinkedContent(_content) returns(address){
-        addedContents[_content].content.grantAccess(_user);
+        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(_user);
         emit AccessGranted(bytes32ToString(_content), _user);
         return addedContents[_content].authorAddress;
     }

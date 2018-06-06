@@ -1,4 +1,5 @@
 pragma solidity ^0.4.23;
+import "./Catalog.sol";
 
 contract BaseContentManagement {
 
@@ -38,6 +39,7 @@ contract BaseContentManagement {
 
     function consumeContent(address _user) external isCatalog onlyIfAllowed(_user) returns(bytes32){
         allowedUsers[_user] = false;
+        Catalog(catalogAddress).AddViews(title);
         return content;
     }
     
