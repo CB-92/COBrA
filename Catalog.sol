@@ -1,11 +1,9 @@
 pragma solidity ^0.4.23;
 pragma experimental ABIEncoderV2;
 import "./BaseContentManagement.sol";
-import "./StringLib.sol";
 
 contract Catalog {
     address public creator;
-    StringLib sc;
     uint contentPrice;
     uint premiumTime;
     uint premiumPrice;
@@ -32,8 +30,12 @@ contract Catalog {
         premiumPrice = 500;
         paymentDelay = 5;
         allTheViews = 0;
-        sc = new StringLib();
     }
+
+    /* events */
+    event AccessGranted(string _content, address _user);
+    event NewLinkedContent(string _content);
+    event ClosedCatalog();
 
     /* user address => block number of premium subscription*/
     mapping (address => uint) premiumUsers;
@@ -73,6 +75,24 @@ contract Catalog {
         _;
     }
 
+    /* Converts a bytes32 value into a string value */
+    function bytes32ToString(bytes32 x) internal pure returns (string) {
+        bytes memory bytesString = new bytes(32);
+        uint charCount = 0;
+        for (uint j = 0; j < 32; j++) {
+            byte char = byte(bytes32(uint(x) * 2 ** (8 * j)));
+            if (char != 0) {
+                bytesString[charCount] = char;
+                charCount++;
+            }
+        }
+        bytes memory bytesStringTrimmed = new bytes(charCount);
+        for (j = 0; j < charCount; j++) {
+            bytesStringTrimmed[j] = bytesString[j];
+        }
+        return string(bytesStringTrimmed);
+    }
+
     function LinkToTheCatalog(BaseContentManagement _bcm) external{
         bytes32 _title = _bcm.title();
         contentList.push(_title);
@@ -81,6 +101,7 @@ contract Catalog {
         addedContents[_title].views = 0;
         addedContents[_title].viewsSincePayed = 0;
         addedContents[_title].isLinked = true;
+        emit NewLinkedContent(bytes32ToString(_title));
     }
 
     function GetStatistics() external view returns (bytes32[], uint[]){
@@ -106,7 +127,7 @@ contract Catalog {
         string memory tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
             if (addedContents[contentList[i]].content.genre() == _genre){
-                tmp = sc.bytes32ToString(contentList[i]);
+                tmp = bytes32ToString(contentList[i]);
                 break;
             }
             if(i == 0)
@@ -122,7 +143,7 @@ contract Catalog {
             if(addedContents[contentList[i]].content.genre() == _genre &&
             addedContents[contentList[i]].views > max){
                 max = addedContents[contentList[i]].views;
-                tmp = sc.bytes32ToString(contentList[i]);
+                tmp = bytes32ToString(contentList[i]);
             }
         }
         return tmp;
@@ -132,7 +153,7 @@ contract Catalog {
         string memory tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
             if (addedContents[contentList[i]].content.author() == _author){
-                tmp = sc.bytes32ToString(contentList[i]);
+                tmp = bytes32ToString(contentList[i]);
                 break;
             }
             if(i == 0)
@@ -149,7 +170,7 @@ contract Catalog {
             if(addedContents[contentList[i]].content.author() == _author &&
             addedContents[contentList[i]].views > max){
                 max = addedContents[contentList[i]].views;
-                tmp = sc.bytes32ToString(contentList[i]);
+                tmp = bytes32ToString(contentList[i]);
             }
         }
         return tmp;
@@ -171,16 +192,20 @@ contract Catalog {
             addedContents[_content].authorAddress.transfer(paymentDelay * contentPrice);
             addedContents[_content].viewsSincePayed = 0;
         }
+        emit AccessGranted(bytes32ToString(_content), msg.sender);
         return addedContents[_content].authorAddress;
     }
 
     function GetContentPremium(bytes32 _content) external restrictToPremium returns (address){
         addedContents[_content].content.grantAccess(msg.sender);
+        emit AccessGranted(bytes32ToString(_content), msg.sender);
         return addedContents[_content].authorAddress;
     }
 
-    function GiftContent(string _content, address _user) external payable costs(contentPrice) ifLinkedContent(sc.stringToBytes32(_content)){
-        addedContents[sc.stringToBytes32(_content)].content.grantAccess(_user);
+    function GiftContent(bytes32 _content, address _user) external payable costs(contentPrice) ifLinkedContent(_content) returns(address){
+        addedContents[_content].content.grantAccess(_user);
+        emit AccessGranted(bytes32ToString(_content), _user);
+        return addedContents[_content].authorAddress;
     }
 
     function GiftPremium(address _user) external payable costs(premiumPrice) {
@@ -195,6 +220,7 @@ contract Catalog {
         for(uint i = 0; i<contentList.length; i++){
             uint toTransfer = address(this).balance * addedContents[contentList[i]].views / allTheViews;
             addedContents[contentList[i]].authorAddress.transfer(toTransfer);
+            emit ClosedCatalog();
         }
         selfdestruct(creator);
     }
