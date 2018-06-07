@@ -1,25 +1,30 @@
 pragma solidity ^0.4.23;
 import "./Catalog.sol";
+import "./StringLib.sol";
 
 contract BaseContentManagement {
-
     bytes32 public title;
     bytes32 public author;
     bytes32 public genre;
-    bytes32 private content;
-
+    bytes32 content;
+    uint public views;
+    uint public viewsSincePayed;
     address catalogAddress;
+
     mapping (address => bool) allowedUsers;
 
-    constructor(bytes32 _title, bytes32 _author, bytes32 _genre) public{
-        title = _title;
-        author = _author;
-        genre = _genre;
+    constructor(string _title, string _author, string _genre, address _catalogAddress) public{
+        title = StringLib.stringToBytes32(_title);
+        author = StringLib.stringToBytes32(_author);
+        genre = StringLib.stringToBytes32(_genre);
+        catalogAddress = _catalogAddress;
+        views = 0;
+        viewsSincePayed = 0;
     }
 
-    modifier onlyIfAllowed(address _user){
+    modifier onlyIfAllowed(){
         require(
-            allowedUsers[_user] == true,
+            allowedUsers[msg.sender] == true,
             "User not allowed"
         );
         _;
@@ -33,14 +38,8 @@ contract BaseContentManagement {
         _;
     }
 
-    function grantAccess(address _user) external isCatalog{
-        allowedUsers[_user] = true;
-    }
+    function grantAccess(address _user) external isCatalog{}
 
-    function consumeContent(address _user) external isCatalog onlyIfAllowed(_user) returns(bytes32){
-        allowedUsers[_user] = false;
-        Catalog(catalogAddress).AddViews(title);
-        return content;
-    }
+    function consumeContent(address _user) external isCatalog onlyIfAllowed() returns(bytes32){}
     
 }
