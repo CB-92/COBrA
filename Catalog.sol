@@ -13,6 +13,7 @@ contract Catalog {
     struct ContentMetadata{
         address authorAddress;
         bool isLinked;
+        BaseContentManagement content;
         //uint views;
         //uint viewsSincePayed;
     }
@@ -31,7 +32,7 @@ contract Catalog {
     /* events */
     event AccessGranted(bytes32 _content, address _user);
     event NewLinkedContent(bytes32 _content);
-    event NewView(bytes32 _content);
+    //event NewView(bytes32 _content);
     event ClosedCatalog();
 
     /* user address => block number of premium subscription*/
@@ -100,10 +101,10 @@ contract Catalog {
         return address(this);
     }
 
-    function LinkToTheCatalog() external{
-        bytes32 _title = BaseContentManagement(msg.sender).title();
+    function LinkToTheCatalog(bytes32 _title) external {
         contentList.push(_title);
         addedContents[_title].authorAddress = msg.sender;
+        addedContents[_title].content = BaseContentManagement(msg.sender);
         //addedContents[_title].views = 0;
         //addedContents[_title].viewsSincePayed = 0;
         addedContents[_title].isLinked = true;
@@ -111,7 +112,11 @@ contract Catalog {
     }
 
     function GetStatistics() external view ifNotEmpty returns (bytes32[], uint[]) {
-
+        uint[]  views;
+        for(uint i = 0; i < contentList.length; i++){
+            views.push(addedContents[contentList[i]].content.views());
+        }
+        return (contentList, views);
     }
 
     function GetContentList() external view ifNotEmpty returns (bytes32[]) {
@@ -132,7 +137,7 @@ contract Catalog {
     function GetLatestByGenre(bytes32 _genre) external view ifNotEmpty returns (bytes32){
         bytes32 tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
-            if (BaseContentManagement(addedContents[contentList[i]].authorAddress).genre() == _genre){
+            if (addedContents[contentList[i]].content.genre() == _genre){
                 tmp = contentList[i];
                 break;
             }
@@ -146,9 +151,9 @@ contract Catalog {
         uint max = 0;
         bytes32 tmp;
         for(uint i = 0; i<contentList.length; i++){
-            if(BaseContentManagement(addedContents[contentList[i]].authorAddress).genre() == _genre &&
-            BaseContentManagement(addedContents[contentList[i]].authorAddress).views() > max){
-                max = BaseContentManagement(addedContents[contentList[i]].authorAddress).views();
+            if(addedContents[contentList[i]].content.genre() == _genre && 
+            addedContents[contentList[i]].content.views() > max){
+                max = addedContents[contentList[i]].content.views();
                 tmp = contentList[i];
             }
         }
@@ -158,7 +163,7 @@ contract Catalog {
     function GetLatestByAuthor(bytes32 _author) external view ifNotEmpty returns (bytes32){
         bytes32 tmp;
         for (uint i = contentList.length - 1; i>=0; i--){
-            if (BaseContentManagement(addedContents[contentList[i]].authorAddress).author() == _author){
+            if (addedContents[contentList[i]].content.author() == _author){
                 tmp = contentList[i];
                 break;
             }
@@ -173,9 +178,9 @@ contract Catalog {
         uint max = 0;
         bytes32 tmp;
         for(uint i = 0; i<contentList.length; i++){
-            if(BaseContentManagement(addedContents[contentList[i]].authorAddress).author() == _author &&
-            BaseContentManagement(addedContents[contentList[i]].authorAddress).views() > max){
-                max = BaseContentManagement(addedContents[contentList[i]].authorAddress).views();
+            if(addedContents[contentList[i]].content.author() == _author &&
+            addedContents[contentList[i]].content.views() > max){
+                max = addedContents[contentList[i]].content.views();
                 tmp = contentList[i];
             }
         }
@@ -200,19 +205,19 @@ contract Catalog {
 }*/
 
     function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
-        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(msg.sender);
+        addedContents[_content].content.grantAccess(msg.sender);
         emit AccessGranted(_content, msg.sender);
         return addedContents[_content].authorAddress;
     }
 
     function GetContentPremium(bytes32 _content) external restrictToPremium  ifLinkedContent(_content) returns (address){
-        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(msg.sender);
+        addedContents[_content].content.grantAccess(msg.sender);
         emit AccessGranted(_content, msg.sender);
         return addedContents[_content].authorAddress;
     }
 
     function GiftContent(bytes32 _content, address _user) external payable costs(contentPrice) ifLinkedContent(_content) returns(address){
-        BaseContentManagement(addedContents[_content].authorAddress).grantAccess(_user);
+        addedContents[_content].content.grantAccess(_user);
         emit AccessGranted(_content, _user);
         return addedContents[_content].authorAddress;
     }
@@ -228,7 +233,7 @@ contract Catalog {
     function ViewsSum() internal view returns(uint){
         uint  tot = 0;
         for (uint i = 0; i<contentList.length; i++){
-            tot += BaseContentManagement(addedContents[contentList[i]].authorAddress).views();
+            tot += addedContents[contentList[i]].content.views();
         }
         return tot;
     }
@@ -241,7 +246,7 @@ contract Catalog {
     function CloseCatalog() external onlyCreator{
         uint allTheViews = ViewsSum();
         for(uint i = 0; i<contentList.length; i++){
-            uint toTransfer = address(this).balance * BaseContentManagement(addedContents[contentList[i]].authorAddress).views() / allTheViews;
+            uint toTransfer = address(this).balance * addedContents[contentList[i]].content.views() / allTheViews;
             addedContents[contentList[i]].authorAddress.transfer(toTransfer);
             emit ClosedCatalog();
         }

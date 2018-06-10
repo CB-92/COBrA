@@ -3,10 +3,17 @@ pragma solidity 0.4.23;
 import "./BaseContentManagement.sol";
 
 contract ContentManagement is BaseContentManagement{
+    Catalog private catalog;
     
-    constructor(string _title, string _author, string _genre, address _catalogAddress)
-    BaseContentManagement(_title, _author, _genre, _catalogAddress) public{
-        Catalog(catalogAddress).LinkToTheCatalog();
+    constructor(string _title, string _author, string _genre, address _catalogAddress) public{
+        title = StringLib.stringToBytes32(_title);
+        author = StringLib.stringToBytes32(_author);
+        genre = StringLib.stringToBytes32(_genre);
+        catalogAddress = _catalogAddress;
+        views = 0;
+        viewsSincePayed = 0;
+        catalog = Catalog(catalogAddress);
+        catalog.LinkToTheCatalog(title);
     }
 
     event PaymentAvailable(bytes32 id);
@@ -15,14 +22,14 @@ contract ContentManagement is BaseContentManagement{
         allowedUsers[_user] = true;
     }
 
-    function consumeContent() external isCatalog onlyIfAllowed() returns(bytes32){
+    function consumeContent() external onlyIfAllowed() returns(bytes32){
         allowedUsers[msg.sender] = false;
-        if(!Catalog(catalogAddress).IsPremium(msg.sender)){
+        if(catalog.IsPremium(msg.sender)==false){
             views++;
             viewsSincePayed++;
         }
 
-        if(viewsSincePayed == Catalog(catalogAddress).paymentDelay()){
+        if(viewsSincePayed == catalog.paymentDelay()){
             //Catalog(catalogAddress).CollectPayment();
             viewsSincePayed = 0;
             emit PaymentAvailable(title);
