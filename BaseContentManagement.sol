@@ -1,14 +1,11 @@
 pragma solidity ^0.4.23;
 import "./Catalog.sol";
-//import "./StringLib.sol";
 
 contract BaseContentManagement {
     bytes32 public title;
     bytes32 public author;
     bytes32 public genre;
     bytes32 content;
-    uint public views;
-    uint public viewsSincePayed;
     address catalogAddress;
 
     mapping (address => bool) allowedUsers;

@@ -9,13 +9,14 @@ contract Catalog {
     /* List of content identifiers */
     bytes32[] contentList;
     uint public paymentDelay;
+    uint allTheViews;
 
     struct ContentMetadata{
         address authorAddress;
         bool isLinked;
         BaseContentManagement content;
-        //uint views;
-        //uint viewsSincePayed;
+        uint views;
+        uint viewsSincePayed;
     }
 
     mapping(bytes32 => ContentMetadata) addedContents;
@@ -27,11 +28,13 @@ contract Catalog {
         contentPrice = 100;
         premiumPrice = 500;
         paymentDelay = 5;
+        allTheViews = 0;
     }
 
     /* events */
     event AccessGranted(bytes32 _content, address _user);
     event NewLinkedContent(bytes32 _content);
+    event PaymentAvailable(bytes32 _content);
     event ClosedCatalog();
 
     /* user address => block number of premium subscription*/
@@ -43,12 +46,6 @@ contract Catalog {
             premiumUsers[msg.sender] + premiumTime > block.number,
             "Access restricted to Premium accounts!"
         );
-        _;
-    }
-
-    /* only for Standard users */
-    modifier restrictToStandard{
-        require(premiumUsers[msg.sender] == 0);
         _;
     }
 
@@ -69,11 +66,20 @@ contract Catalog {
         _;
     }
 
-    /* Functionality allowed only for the related content */
+    /* Check that the caller is the content */
     modifier onlyContent(bytes32 _content){
         require(
             addedContents[_content].authorAddress == msg.sender,
-            "Not allowed content!"
+            "Action allowed only for content contract!"  
+        );
+        _;
+    }
+
+    /* Check content views */
+    modifier checkViews(bytes32 _content){
+        require(
+            addedContents[_content].viewsSincePayed >= paymentDelay,
+            "No views enough to be payed!"
         );
         _;
     }
@@ -104,16 +110,16 @@ contract Catalog {
         contentList.push(_title);
         addedContents[_title].authorAddress = msg.sender;
         addedContents[_title].content = BaseContentManagement(msg.sender);
-        //addedContents[_title].views = 0;
-        //addedContents[_title].viewsSincePayed = 0;
+        addedContents[_title].views = 0;
+        addedContents[_title].viewsSincePayed = 0;
         addedContents[_title].isLinked = true;
         emit NewLinkedContent(_title);
     }
 
     function GetStatistics() external view ifNotEmpty returns (bytes32[], uint[]) {
-        uint[]  views;
+        uint[] memory views = new uint[](contentList.length);
         for(uint i = 0; i < contentList.length; i++){
-            views.push(addedContents[contentList[i]].content.views());
+            views[i] = addedContents[contentList[i]].views;
         }
         return (contentList, views);
     }
@@ -151,8 +157,8 @@ contract Catalog {
         bytes32 tmp;
         for(uint i = 0; i<contentList.length; i++){
             if(addedContents[contentList[i]].content.genre() == _genre && 
-            addedContents[contentList[i]].content.views() > max){
-                max = addedContents[contentList[i]].content.views();
+            addedContents[contentList[i]].views > max){
+                max = addedContents[contentList[i]].views;
                 tmp = contentList[i];
             }
         }
@@ -178,8 +184,8 @@ contract Catalog {
         bytes32 tmp;
         for(uint i = 0; i<contentList.length; i++){
             if(addedContents[contentList[i]].content.author() == _author &&
-            addedContents[contentList[i]].content.views() > max){
-                max = addedContents[contentList[i]].content.views();
+            addedContents[contentList[i]].views > max){
+                max = addedContents[contentList[i]].views;
                 tmp = contentList[i];
             }
         }
@@ -218,23 +224,24 @@ contract Catalog {
         premiumUsers[msg.sender] = block.number;
     }
 
-    function ViewsSum() internal view returns(uint){
-        uint  tot = 0;
-        for (uint i = 0; i<contentList.length; i++){
-            tot += addedContents[contentList[i]].content.views();
-        }
-        return tot;
+    /* Add views to a content and emit an event if it reaches the views for a payment */
+    function AddViews(bytes32 _content) external onlyContent(_content){
+        addedContents[_content].views++;
+        addedContents[_content].viewsSincePayed++;
+        allTheViews++;
+        if(addedContents[_content].viewsSincePayed == 5)
+            emit PaymentAvailable(_content); 
     }
 
-    // @notice to be simulated manually for the moment
-    function SendPayment(bytes32 _content) external {
-        addedContents[_content].authorAddress.transfer(paymentDelay * contentPrice);
+    // @notice to be simulated manually for the moment, with the frontend there will be a callback
+    function CollectPayment(bytes32 _content) external checkViews(_content) {
+        msg.sender.transfer(paymentDelay * contentPrice);
+        addedContents[_content].viewsSincePayed = 0;
     }
 
     function CloseCatalog() external onlyCreator{
-        uint allTheViews = ViewsSum();
         for(uint i = 0; i<contentList.length; i++){
-            uint toTransfer = address(this).balance * addedContents[contentList[i]].content.views() / allTheViews;
+            uint toTransfer = address(this).balance * addedContents[contentList[i]].views / allTheViews;
             addedContents[contentList[i]].authorAddress.transfer(toTransfer);
             emit ClosedCatalog();
         }

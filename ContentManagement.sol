@@ -10,13 +10,9 @@ contract ContentManagement is BaseContentManagement{
         author = _author;
         genre = _genre;
         catalogAddress = _catalogAddress;
-        views = 0;
-        viewsSincePayed = 0;
         catalog = Catalog(catalogAddress);
         catalog.LinkToTheCatalog(title);
     }
-
-    event PaymentAvailable(bytes32 id);
 
     function grantAccess(address _user) external isCatalog{
         allowedUsers[_user] = true;
@@ -25,14 +21,7 @@ contract ContentManagement is BaseContentManagement{
     function consumeContent() external onlyIfAllowed() returns(bytes32){
         allowedUsers[msg.sender] = false;
         if(catalog.IsPremium(msg.sender)==false){
-            views++;
-            viewsSincePayed++;
-        }
-
-        if(viewsSincePayed == catalog.paymentDelay()){
-            //Catalog(catalogAddress).CollectPayment();
-            viewsSincePayed = 0;
-            emit PaymentAvailable(title);
+            catalog.AddViews(title);
         }
 
         return content;
