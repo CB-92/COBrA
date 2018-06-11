@@ -5,10 +5,10 @@ import "./BaseContentManagement.sol";
 contract ContentManagement is BaseContentManagement{
     Catalog private catalog;
     
-    constructor(string _title, string _author, string _genre, address _catalogAddress) public{
-        title = StringLib.stringToBytes32(_title);
-        author = StringLib.stringToBytes32(_author);
-        genre = StringLib.stringToBytes32(_genre);
+    constructor(bytes32 _title, bytes32 _author, bytes32 _genre, address _catalogAddress) public{
+        title = _title;
+        author = _author;
+        genre = _genre;
         catalogAddress = _catalogAddress;
         views = 0;
         viewsSincePayed = 0;

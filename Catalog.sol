@@ -32,7 +32,6 @@ contract Catalog {
     /* events */
     event AccessGranted(bytes32 _content, address _user);
     event NewLinkedContent(bytes32 _content);
-    //event NewView(bytes32 _content);
     event ClosedCatalog();
 
     /* user address => block number of premium subscription*/
@@ -79,7 +78,7 @@ contract Catalog {
         _;
     }
 
-    /* Check payment value */
+    /* Check payment value: transaction refused if value < amount and if value > amount */
     modifier costs(uint _amount){
         require(
             msg.value == _amount,
@@ -192,17 +191,6 @@ contract Catalog {
             return true;
         else return false;
     }
-
-    /*function AddViews(bytes32 _content) external restrictToStandard onlyContent(_content){
-        addedContents[_content].views++;
-        addedContents[_content].viewsSincePayed++;
-        // Pay authors every paymentDelay views 
-        if(addedContents[_content].viewsSincePayed == paymentDelay){
-            addedContents[_content].authorAddress.transfer(paymentDelay * contentPrice);
-            addedContents[_content].viewsSincePayed = 0;
-        }
-        emit NewView(_content);
-}*/
 
     function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
         addedContents[_content].content.grantAccess(msg.sender);

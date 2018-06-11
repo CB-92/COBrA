@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 import "./Catalog.sol";
-import "./StringLib.sol";
+//import "./StringLib.sol";
 
 contract BaseContentManagement {
     bytes32 public title;
