@@ -5,8 +5,9 @@ contract BaseContentManagement {
     bytes32 public title;
     bytes32 public author;
     bytes32 public genre;
-    bytes32 content;
-    address catalogAddress;
+    bytes32[] internal content;
+    address internal catalogAddress;
+    Catalog internal catalog;
 
     mapping (address => bool) allowedUsers;
 
@@ -26,8 +27,8 @@ contract BaseContentManagement {
         _;
     }
 
-    function grantAccess(address _user) external isCatalog{}
+    function grantAccess(address _user) external;
 
-    function consumeContent() external isCatalog onlyIfAllowed() returns(bytes32){}
+    function consumeContent() external returns(bytes32[]);
     
 }

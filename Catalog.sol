@@ -6,7 +6,6 @@ contract Catalog {
     uint contentPrice;
     uint premiumTime;
     uint premiumPrice;
-    /* List of content identifiers */
     bytes32[] contentList;
     uint public paymentDelay;
     uint allTheViews;
