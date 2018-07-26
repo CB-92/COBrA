@@ -27,8 +27,17 @@ contract BaseContentManagement {
         _;
     }
 
-    function grantAccess(address _user) external;
+    function grantAccess(address _user) external isCatalog{
+        allowedUsers[_user] = true;
+    }
 
-    function consumeContent() external returns(bytes32[]);
+    function consumeContent() external onlyIfAllowed() returns(bytes32[]){
+        allowedUsers[msg.sender] = false;
+        if(catalog.IsPremium(msg.sender)==false){
+            catalog.AddViews(title);
+        }
+
+        return content;
+    }
     
 }

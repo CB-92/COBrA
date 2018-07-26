@@ -228,14 +228,16 @@ contract Catalog {
         addedContents[_content].views++;
         addedContents[_content].viewsSincePayed++;
         allTheViews++;
-        if(addedContents[_content].viewsSincePayed == 5)
-            emit PaymentAvailable(_content); 
+        if(addedContents[_content].viewsSincePayed >= paymentDelay)
+            emit PaymentAvailable(_content);
     }
 
     // @notice to be simulated manually for the moment, with the frontend there will be a callback
-    function CollectPayment(bytes32 _content) external checkViews(_content) {
+    function CollectPayment(bytes32 _content) external checkViews(_content) onlyContent(_content) {
         msg.sender.transfer(paymentDelay * contentPrice);
-        addedContents[_content].viewsSincePayed = 0;
+        /* #views to be payed = #views since last time - #views payed this time 
+            So no views are are lost between the notification of available payment and collecting the payment */
+        addedContents[_content].viewsSincePayed = addedContents[_content].viewsSincePayed - paymentDelay; 
     }
 
     function CloseCatalog() external onlyCreator{
