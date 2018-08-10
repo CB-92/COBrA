@@ -9,11 +9,16 @@ contract BaseContentManagement {
     address internal catalogAddress;
     Catalog internal catalog;
 
-    mapping (address => bool) allowedUsers;
+    struct UserMetadata{
+        bool allowed;
+        bool consumed;
+    }
+
+    mapping (address => UserMetadata) users;
 
     modifier onlyIfAllowed(){
         require(
-            allowedUsers[msg.sender] == true,
+            users[msg.sender].allowed == true,
             "User not allowed"
         );
         _;
@@ -28,16 +33,22 @@ contract BaseContentManagement {
     }
 
     function grantAccess(address _user) external isCatalog{
-        allowedUsers[_user] = true;
+        users[_user].allowed = true;
+        users[_user].consumed = false;
     }
 
     function consumeContent() external onlyIfAllowed() returns(bytes32[]){
-        allowedUsers[msg.sender] = false;
+        users[msg.sender].allowed = false;
+        users[msg.sender].consumed = true;
         if(catalog.IsPremium(msg.sender)==false){
             catalog.AddViews(title);
         }
 
         return content;
+    }
+
+    function hasConsumed(address _user) external view returns(bool){
+        return users[_user].consumed;
     }
     
 }

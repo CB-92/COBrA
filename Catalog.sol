@@ -16,6 +16,7 @@ contract Catalog {
         BaseContentManagement content;
         uint views;
         uint viewsSincePayed;
+        uint averageRating;
     }
 
     mapping(bytes32 => ContentMetadata) addedContents;
@@ -38,6 +39,26 @@ contract Catalog {
 
     /* user address => block number of premium subscription*/
     mapping (address => uint) premiumUsers;
+
+    /*
+    Content feedback includes 3 categories: appreciation of the content, content quality and price fairnes.
+    Each category could be rated with a score from 0 to 5.
+    So maximum rating is 5*3=15.
+    */
+    struct MostRated{
+        bytes32 average;
+        uint averageValue;
+        bytes32 price;
+        uint priceValue;
+        bytes32 quality;
+        uint qualityValue;
+        bytes32 appreciation;
+        uint appreciationValue;
+    }
+
+    MostRated mostRated;
+    mapping (bytes32 => MostRated) authorToMostRated;
+    mapping (bytes32 => MostRated) genreToMostRated;
 
     /* modifier to restrict a functionality only to Premium users */
     modifier restrictToPremium{
@@ -101,6 +122,15 @@ contract Catalog {
         _;
     }
 
+    /* Check if an user already consumed a certain content */
+    modifier onlyIfConsumed(bytes32 _content){
+        require(
+            addedContents[_content].content.hasConsumed(msg.sender),
+            "You can leave a feedback only if you already consumed the content!"
+            );
+        _;
+    }
+
     function getCatalogAddress() external view returns(address){
         return address(this);
     }
@@ -112,6 +142,7 @@ contract Catalog {
         addedContents[_title].views = 0;
         addedContents[_title].viewsSincePayed = 0;
         addedContents[_title].isLinked = true;
+        addedContents[_title].averageRating = 0;
         emit NewLinkedContent(_title);
     }
 
@@ -189,6 +220,113 @@ contract Catalog {
             }
         }
         return tmp;
+    }
+
+    function GetMostRated() external view returns (bytes32){
+        return mostRated.average;
+    }
+
+    function GetMostRated(bytes32 _category) external view returns(bytes32){
+        if(_category == "price") return mostRated.price;
+        else if (_category == "quality") return mostRated.quality;
+        else return mostRated.appreciation;
+    }
+
+    function GetMostRatedByGenre(bytes32 _genre) external view returns(bytes32){
+        return genreToMostRated[_genre].average;
+    }
+
+    function GetMostRatedByGenre(bytes32 _genre, bytes32 _category) external view returns(bytes32){
+        if(_category == "price") return genreToMostRated[_genre].price;
+        else if (_category == "quality") return genreToMostRated[_genre].quality;
+        else return genreToMostRated[_genre].appreciation;
+    }
+
+    function GetMostRatedByAuthor(bytes32 _author) external view returns(bytes32){
+        return authorToMostRated[_author].average;
+    }
+
+    function GetMostRatedByAuthor(bytes32 _author, bytes32 _category) external view returns(bytes32){
+        if(_category == "price") return authorToMostRated[_author].price;
+        else if (_category == "quality") return authorToMostRated[_author].quality;
+        else return authorToMostRated[_author].appreciation;
+    }
+
+    function LeaveFeedback(bytes32 _content, uint _price, uint _appreciation, uint _quality) external onlyIfConsumed(_content){
+        uint average = (_price + _appreciation + _quality) / 3;
+        bytes32 author = addedContents[_content].content.author();
+        bytes32 genre = addedContents[_content].content.genre();
+        /* for price base value */
+        addedContents[_content].averageRating = average;
+
+        /* absolute */
+
+        /* no category */
+        if(mostRated.averageValue < average){
+            mostRated.averageValue = average;
+            mostRated.average = _content;    
+        }
+        /* price fairness */
+        if(mostRated.priceValue < _price){
+            mostRated.priceValue = _price;
+            mostRated.price = _content;
+        }
+        /* content quality */
+        if(mostRated.qualityValue < _quality){
+            mostRated.qualityValue = _quality;
+            mostRated.quality = _content;
+        }
+        /* appreciation of the content */
+        if(mostRated.appreciationValue < _appreciation){
+            mostRated.appreciationValue = _appreciation;
+            mostRated.appreciation = _content;
+        }
+
+        /* genre */
+
+        /* no category */
+        if(genreToMostRated[genre].averageValue < average){
+            genreToMostRated[genre].averageValue = average;
+            genreToMostRated[genre].average = _content;    
+        }
+        /* price fairness */
+        if(genreToMostRated[genre].priceValue < _price){
+            genreToMostRated[genre].priceValue = _price;
+            genreToMostRated[genre].price = _content;
+        }
+        /* content quality */
+        if(genreToMostRated[genre].qualityValue < _quality){
+            genreToMostRated[genre].qualityValue = _quality;
+            genreToMostRated[genre].quality = _content;
+        }
+        /* appreciation of the content */
+        if(genreToMostRated[genre].appreciationValue < _appreciation){
+            genreToMostRated[genre].appreciationValue = _appreciation;
+            genreToMostRated[genre].appreciation = _content;
+        }
+
+        /* author */
+
+        /* no category */
+        if(authorToMostRated[author].averageValue < average){
+            authorToMostRated[author].averageValue = average;
+            authorToMostRated[author].average = _content;    
+        }
+        /* price fairness */
+        if(authorToMostRated[author].priceValue < _price){
+            authorToMostRated[author].priceValue = _price;
+            authorToMostRated[author].price = _content;
+        }
+        /* content quality */
+        if(authorToMostRated[author].qualityValue < _quality){
+            authorToMostRated[author].qualityValue = _quality;
+            authorToMostRated[author].quality = _content;
+        }
+        /* appreciation of the content */
+        if(authorToMostRated[author].appreciationValue < _appreciation){
+            authorToMostRated[author].appreciationValue = _appreciation;
+            authorToMostRated[author].appreciation = _content;
+        }
     }
 
     function IsPremium(address _user) external view returns (bool){
