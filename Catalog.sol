@@ -3,7 +3,6 @@ import "./BaseContentManagement.sol";
 
 contract Catalog {
     address public creator;
-    uint contentPrice;
     uint premiumTime;
     uint premiumPrice;
     bytes32[] contentList;
@@ -17,6 +16,7 @@ contract Catalog {
         uint views;
         uint viewsSincePayed;
         uint averageRating;
+        uint requestedPrice;
     }
 
     mapping(bytes32 => ContentMetadata) addedContents;
@@ -25,7 +25,6 @@ contract Catalog {
         creator = msg.sender;
         /* 1 day = (24 h * 60 min * 60 sec) / 14.93 seconds per block = 53788 blocks */
         premiumTime = 53788;
-        contentPrice = 100;
         premiumPrice = 500;
         paymentDelay = 5;
         allTheViews = 0;
@@ -135,7 +134,7 @@ contract Catalog {
         return address(this);
     }
 
-    function LinkToTheCatalog(bytes32 _title) external {
+    function LinkToTheCatalog(bytes32 _title, uint _requestedPrice) external {
         contentList.push(_title);
         addedContents[_title].authorAddress = msg.sender;
         addedContents[_title].content = BaseContentManagement(msg.sender);
@@ -143,6 +142,7 @@ contract Catalog {
         addedContents[_title].viewsSincePayed = 0;
         addedContents[_title].isLinked = true;
         addedContents[_title].averageRating = 0;
+        addedContents[_title].requestedPrice = _requestedPrice;
         emit NewLinkedContent(_title);
     }
 
@@ -335,7 +335,8 @@ contract Catalog {
         else return false;
     }
 
-    function GetContent(bytes32 _content) external payable costs(contentPrice) ifLinkedContent(_content) returns (address){
+    function GetContent(bytes32 _content) external payable costs(addedContents[_content].requestedPrice)
+        ifLinkedContent(_content) returns (address){
         addedContents[_content].content.grantAccess(msg.sender);
         emit AccessGranted(_content, msg.sender);
         return addedContents[_content].authorAddress;
@@ -347,7 +348,8 @@ contract Catalog {
         return addedContents[_content].authorAddress;
     }
 
-    function GiftContent(bytes32 _content, address _user) external payable costs(contentPrice) ifLinkedContent(_content) returns(address){
+    function GiftContent(bytes32 _content, address _user) external payable costs(addedContents[_content].requestedPrice)
+        ifLinkedContent(_content) returns(address){
         addedContents[_content].content.grantAccess(_user);
         emit AccessGranted(_content, _user);
         return addedContents[_content].authorAddress;
@@ -372,7 +374,7 @@ contract Catalog {
 
     // @notice to be simulated manually for the moment, with the frontend there will be a callback
     function CollectPayment(bytes32 _content) external checkViews(_content) onlyContent(_content) {
-        msg.sender.transfer(paymentDelay * contentPrice);
+        msg.sender.transfer(addedContents[_content].averageRating * addedContents[_content].requestedPrice);
         /* #views to be payed = #views since last time - #views payed this time 
             So no views are are lost between the notification of available payment and collecting the payment */
         addedContents[_content].viewsSincePayed = addedContents[_content].viewsSincePayed - paymentDelay; 
